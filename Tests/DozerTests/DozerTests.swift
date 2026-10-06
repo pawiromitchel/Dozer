@@ -105,3 +105,45 @@ struct LegacyShortcutTests {
         #expect(LegacyShortcutMigration.decode(Data([1, 2, 3])) == nil)
     }
 }
+
+struct HiddenItemsTests {
+    // Real layout captured on macOS 26 with two icons hidden.
+    let separator = CGRect(x: -3670, y: 0, width: 5016, height: 33)
+    let items = [
+        CGRect(x: -3670, y: 0, width: 5016, height: 33), // separator itself
+        CGRect(x: -3704, y: 0, width: 34, height: 33),
+        CGRect(x: -3744, y: 0, width: 40, height: 33),
+        CGRect(x: 1346, y: 0, width: 41, height: 33),    // Dozer dot
+        CGRect(x: 1387, y: 0, width: 38, height: 33)
+    ]
+
+    @Test func countsItemsLeftOfSeparator() {
+        #expect(HiddenItems.count(in: items, leftOf: separator) == 2)
+    }
+
+    @Test func excludesDozersOwnItems() {
+        let removeIcon = CGRect(x: -3744, y: 0, width: 40, height: 33)
+        #expect(HiddenItems.count(in: items, leftOf: separator, excluding: [removeIcon]) == 1)
+    }
+
+    @Test func ignoresOtherDisplaysMenuBars() {
+        let otherDisplay = CGRect(x: -3800, y: -1080, width: 30, height: 24)
+        #expect(HiddenItems.count(in: items + [otherDisplay], leftOf: separator) == 2)
+    }
+
+    @Test func countsNothingWhenShown() {
+        let shownSeparator = CGRect(x: 1305, y: 0, width: 12, height: 33)
+        #expect(HiddenItems.count(in: [CGRect(x: 1346, y: 0, width: 41, height: 33)], leftOf: shownSeparator) == 0)
+    }
+}
+
+@MainActor
+struct BadgeTests {
+    @Test func badgeWidensForMoreDigits() {
+        let one = StatusIcon.badge(count: 3, height: 15)
+        let two = StatusIcon.badge(count: 12, height: 15)
+        #expect(one.size.width == 15)
+        #expect(two.size.width > one.size.width)
+        #expect(one.isTemplate)
+    }
+}

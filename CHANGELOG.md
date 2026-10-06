@@ -9,9 +9,13 @@ Fixed:
 * "Hide after delay" never noticed menu bar use on notched MacBooks (it assumed a 22pt menu bar), and it can't see other apps' status items on macOS 26. It now checks the pointer position against the real menu bar height and checks for open menus (#151).
 * The "remove" icon could resize the normal icons, because they shared one image instance.
 * Removed every `fatalError`/force-unwrap path in the icon logic.
+* Clicking the separator dot didn't hide anything on macOS 26: clicks now act on mouse-up, since macOS won't resize an item while it's pressed.
 * Native Apple Silicon: universal binary (arm64 + x86_64) (#153, #162, #203, #210).
 
 New:
+* One dot instead of two: the separator is now a faint divider line that disappears while icons are hidden (#161, #185, #195).
+* The dot shows how many icons are hidden.
+* First-launch hint explaining where to drag icons.
 * Rewritten settings window in SwiftUI.
 * Right-click menu: Show All Icons, Settings…, Check for Updates…, Quit.
 * `dozer://` URL scheme for automation (Shortcuts, Raycast, scripts): `toggle`, `show`, `hide`, `show-all`, `settings`.

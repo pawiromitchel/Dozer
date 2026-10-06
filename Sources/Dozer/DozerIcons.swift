@@ -37,6 +37,10 @@ final class DozerIcons {
         rebuildNormalIcons()
         updateRemoveIcon()
         revealIcons()
+        // Roles follow position, which macOS restores shortly after the items are created.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.updateStyles()
+        }
         observeSettings()
         observeSystem()
         KeyboardShortcuts.onKeyUp(for: .toggleMenuItems) { [weak self] in
@@ -111,6 +115,10 @@ final class DozerIcons {
         stopAutoHideTimer()
         hideIconAndMenu()
         logLayout()
+        // Count once the items have been pushed off-screen.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.updateStyles()
+        }
     }
 
     func show() {
@@ -124,7 +132,24 @@ final class DozerIcons {
     private func revealIcons() {
         removeIcon?.hide()
         normalIcons.forEach { $0.show() }
+        updateStyles()
         didShow()
+    }
+
+    /// One visible dot: the separator draws as a faint line (and vanishes when collapsed),
+    /// and the dot shows how many icons are hidden.
+    private func updateStyles() {
+        guard normalIcons.count > 1, let separator = leftIcon, let handle = rightIcon else {
+            normalIcons.forEach { $0.style = .dot }
+            return
+        }
+        separator.style = .divider
+        if isHidden, let count = HiddenItems.count(leftOf: separator, excluding: allIcons.filter { $0 !== separator }) {
+            Self.log.debug("hidden items: \(count)")
+            handle.style = .badge(count)
+        } else {
+            handle.style = .dot
+        }
     }
 
     func toggle() {
@@ -136,6 +161,7 @@ final class DozerIcons {
         Self.log.debug("showAll")
         normalIcons.forEach { $0.show() }
         removeIcon?.show()
+        updateStyles()
         didShow()
         logLayout()
     }
@@ -150,10 +176,10 @@ final class DozerIcons {
         defaults.set(true, forKey: key)
 
         let label = NSTextField(wrappingLabelWithString: """
-            Icons to the left of this dot are hidden when you click a Dozer dot.
+            Icons to the left of this line are hidden when you click the Dozer dot.
 
-            Hold ⌘ and drag the icons you want to hide to the left of this dot. \
-            Right-click a dot for settings.
+            Hold ⌘ and drag the icons you want to hide to the left of this line. \
+            Right-click the dot for settings.
             """)
         label.preferredMaxLayoutWidth = 260
         let container = NSView()
@@ -223,6 +249,7 @@ final class DozerIcons {
         } else {
             removeIcon.toggle()
         }
+        updateStyles()
         didShow()
     }
 

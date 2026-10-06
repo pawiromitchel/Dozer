@@ -49,26 +49,21 @@ git clone https://github.com/pawiromitchel/Dozer && cd Dozer && make install
 
 Your settings and keyboard shortcut from Dozer 4.x carry over automatically.
 
-## ⚫️ Dozer Icons
+## ⚫️ How it works
 
-There are 2 or 3, numbered from right to left:
+Dozer adds **one dot** to your menu bar, plus a faint divider line just left of it.
 
-1. this can be positioned anywhere you prefer, it is only a point of interaction
-2. this and everything to its left will be hidden/shown by clicking any Dozer icon
-3. (Optional) the "remove" icon and everything to its left will be hidden/shown by option-clicking any Dozer icon
+* Hold ⌘ and drag the icons you want to hide to the **left of the divider**
+* Click the dot to hide them. The dot then shows how many icons are hidden, e.g. **③**
+* Click it again to bring them back. The divider disappears while icons are hidden
 
-## 👨‍💻 Usage
-
-* Move the icons you want to hide until clicked to the left of the second Dozer icon
-* Move the icons you want to hide until option-clicked to the left of the third Dozer icon
-
-**N.B. hold command (`⌘`) then drag to move the menu bar icons.** Dozer remembers where you put its icons.
+Dozer remembers where you put the dot and the divider.
 
 ## 👇 Interactions
-* Left-click one of the Dozer icons to hide/show the first group of menu bar icons
-* Option-click one of the Dozer icons to show the second group of menu bar icons (optional)
-* Right-click (or control-click) one of the Dozer icons for Settings, Show All Icons, updates and Quit
-* Set a global keyboard shortcut in Settings. With a shortcut you can also hide the Dozer icons themselves
+* Click the dot to hide/show the icons left of the divider
+* Right-click (or control-click) the dot for Settings, Show All Icons, updates and Quit
+* Set a global keyboard shortcut in Settings. With a shortcut you can also hide the dot itself
+* Optional: enable the small "remove" dot in Settings for a second group, revealed with option-click
 * Open Dozer again from Finder or Spotlight to reveal everything and open Settings
 
 ## 🤖 Automation
