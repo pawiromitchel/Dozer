@@ -140,6 +140,44 @@ final class DozerIcons {
         logLayout()
     }
 
+    /// First launch: explain where to put icons, anchored to the separator. Fresh dots appear left of
+    /// every other icon, so without this a click seems to do nothing.
+    func showOnboardingIfNeeded(defaults: UserDefaults = .standard) {
+        let key = "didShowOnboarding"
+        guard !defaults.bool(forKey: key), let button = leftIcon?.item.button else {
+            return
+        }
+        defaults.set(true, forKey: key)
+
+        let label = NSTextField(wrappingLabelWithString: """
+            Icons to the left of this dot are hidden when you click a Dozer dot.
+
+            Hold ⌘ and drag the icons you want to hide to the left of this dot. \
+            Right-click a dot for settings.
+            """)
+        label.preferredMaxLayoutWidth = 260
+        let container = NSView()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 14),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -14),
+            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+            label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
+            label.widthAnchor.constraint(equalToConstant: 260)
+        ])
+        let controller = NSViewController()
+        controller.view = container
+
+        let popover = NSPopover()
+        popover.contentViewController = controller
+        popover.behavior = .transient
+        // Let macOS place the restored icons first.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+    }
+
     func hideAtLaunch() {
         guard settings.hideAtLaunch else {
             return
@@ -326,15 +364,17 @@ final class DozerIcons {
 
     /// Logs icon positions, viewable with `log stream --level debug --predicate 'subsystem == "com.mortennn.Dozer"'`.
     private func logLayout() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            guard let self else {
-                return
+        for delay in [0.3, 1.5] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self else {
+                    return
+                }
+                let layout = allIcons.map { icon in
+                    let role = icon.kind == .remove ? "remove" : (icon === leftIcon ? "separator" : "handle")
+                    return "\(role)@\(icon.xPosition.map { String(Int($0)) } ?? "?")(\(icon.isShown ? "shown" : "collapsed"))"
+                }
+                Self.log.debug("layout+\(delay)s: \(layout.joined(separator: " "), privacy: .public) hidden=\(self.isHidden)")
             }
-            let layout = allIcons.map { icon in
-                let role = icon.kind == .remove ? "remove" : (icon === leftIcon ? "separator" : "handle")
-                return "\(role)@\(icon.xPosition.map { String(Int($0)) } ?? "?")(\(icon.isShown ? "shown" : "collapsed"))"
-            }
-            Self.log.debug("layout: \(layout.joined(separator: " "), privacy: .public) hidden=\(self.isHidden)")
         }
     }
 

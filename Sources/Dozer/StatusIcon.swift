@@ -34,7 +34,9 @@ final class StatusIcon {
         if let button = item.button {
             button.target = self
             button.action = #selector(clicked(_:))
-            button.sendAction(on: [.leftMouseDown, .rightMouseDown])
+            // Mouse-up, not mouse-down: macOS 26 won't resize an item while it's being pressed,
+            // so clicking the separator itself failed to collapse it.
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.setAccessibilityLabel(kind == .remove ? "Dozer secondary separator" : "Dozer")
         }
         updateAppearance()

@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.showContextMenu(for: icon)
         }
         icons.start()
+        icons.showOnboardingIfNeeded()
         icons.hideAtLaunch()
 
         UpdateChecker.checkInBackgroundIfDue()
