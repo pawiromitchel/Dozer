@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
-* **One bulldozer, no divider.** Dozer now uses a single menu bar item: click the bulldozer and everything to its left is hidden. The glyph is pinned to the item's right edge, so it stays put and clickable while the item stretches to push icons off-screen.
-* A badge on the bulldozer shows how many icons are hidden. The icon never changes size, so nothing jumps.
+## Version 5.1.0
+* **One bulldozer instead of two dots.** Click it to hide every icon to its left. ⌘-drag it anywhere; Dozer keeps an invisible "wall" glued to its left that does the hiding (macOS 26 doesn't draw a menu bar item stretched past the screen edge, so the bulldozer itself never stretches).
+* A badge on the bulldozer shows how many icons are hidden, up to "99+". The icon never changes size, so nothing jumps.
 * The bulldozer glyph is traced from the app icon and follows the menu bar's light/dark appearance.
+* First-launch hint explaining where to place the bulldozer.
 * New demo GIF (about 150 KB, down from 3 MB), generated from the app's real drawing code with `make demo-gif`.
-* Checked memory (#211): about 55–65 MB and flat across 120 hide/show cycles.
+* Checked memory (#211): about 55–65 MB and flat across 120 hide/show cycles; about 0.1% CPU with auto-hide on.
 
 ## Version 5.0.0 (community fork)
 Dozer is maintained again in this fork, after four years without upstream updates.
