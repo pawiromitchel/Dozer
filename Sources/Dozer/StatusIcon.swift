@@ -7,8 +7,11 @@ import Cocoa
 /// One of Dozer's menu bar items.
 ///
 /// Hiding works by growing the item to a huge length, which pushes every status item to its left off
-/// the screen. Items grow leftwards, so the bulldozer is pinned to the item's right edge: it stays put,
+/// the screen. Items grow leftwards, so the bulldozer is drawn at the item's right edge: it stays put,
 /// clickable, while the invisible rest of the item does the dozing.
+///
+/// On macOS 26 the system draws status items itself and only shows the button's image (not subviews),
+/// so while stretched the image is as wide as the button, with the bulldozer at its right end.
 @MainActor
 final class StatusIcon {
     enum Kind {
@@ -32,10 +35,11 @@ final class StatusIcon {
     }
     /// Hides the bulldozer glyph itself while collapsed ("no icon" mode, shortcut only).
     var hidesGlyphWhenCollapsed = false {
-        didSet { updateGlyphVisibility() }
+        didSet { renderButtonImage() }
     }
 
-    private let glyphView = NSImageView()
+    private var glyph: NSImage?
+    private var frameObserver: NSObjectProtocol?
     private let onClick: (StatusIcon, NSEvent?) -> Void
 
     init(kind: Kind, autosaveName: String, onClick: @escaping (StatusIcon, NSEvent?) -> Void) {
@@ -55,14 +59,16 @@ final class StatusIcon {
             // A stretched item would otherwise highlight across the whole menu bar when clicked.
             (button.cell as? NSButtonCell)?.highlightsBy = []
 
+            button.imageScaling = .scaleNone
+
             if kind == .bulldozer {
-                glyphView.translatesAutoresizingMaskIntoConstraints = false
-                glyphView.imageScaling = .scaleNone
-                button.addSubview(glyphView)
-                NSLayoutConstraint.activate([
-                    glyphView.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -Self.glyphInset),
-                    glyphView.centerYAnchor.constraint(equalTo: button.centerYAnchor)
-                ])
+                // Re-render once macOS has applied a new length, so the bulldozer lands on the right edge.
+                button.postsFrameChangedNotifications = true
+                frameObserver = NotificationCenter.default.addObserver(
+                    forName: NSView.frameDidChangeNotification, object: button, queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.renderButtonImage() }
+                }
             }
         }
         updateAppearance()
@@ -76,12 +82,12 @@ final class StatusIcon {
 
     func show() {
         item.length = shownLength
-        updateGlyphVisibility()
+        renderButtonImage()
     }
 
     func hide() {
         item.length = Self.collapsedLength
-        updateGlyphVisibility()
+        renderButtonImage()
     }
 
     func toggle() {
@@ -94,25 +100,39 @@ final class StatusIcon {
         case .remove:
             item.button?.image = Self.dot(diameter: CGFloat(AppSettings.shared.iconSize) / 2)
         case .bulldozer:
-            let glyph = DozerGlyph.image(height: glyphHeight, count: hiddenCount)
-            if glyphView.image != nil {
-                // Fade the badge in and out; the icon's size never changes, so nothing jumps.
-                glyphView.wantsLayer = true
-                let fade = CATransition()
-                fade.type = .fade
-                fade.duration = 0.25
-                glyphView.layer?.add(fade, forKey: "badge")
-            }
-            glyphView.image = glyph
+            // Same size with or without the badge, so the bulldozer never shifts.
+            glyph = DozerGlyph.image(height: glyphHeight, count: hiddenCount)
             item.button?.setAccessibilityValue(hiddenCount.map { "\($0) hidden" })
         }
         if isShown {
             item.length = shownLength
         }
+        renderButtonImage()
     }
 
-    private func updateGlyphVisibility() {
-        glyphView.isHidden = hidesGlyphWhenCollapsed && !isShown
+    /// Shown: just the bulldozer. Stretched: a transparent image as wide as the button with the bulldozer
+    /// at its right end (the button centers its image, so this puts the bulldozer on the right edge).
+    private func renderButtonImage() {
+        guard kind == .bulldozer, let glyph, let button = item.button else {
+            return
+        }
+        if isShown {
+            button.image = glyph
+            return
+        }
+        if hidesGlyphWhenCollapsed {
+            button.image = nil
+            return
+        }
+        let width = max(button.bounds.width, glyph.size.width)
+        let canvas = NSImage(size: NSSize(width: width, height: glyph.size.height), flipped: false) { rect in
+            glyph.draw(in: NSRect(x: rect.maxX - glyph.size.width - Self.glyphInset, y: 0,
+                                  width: glyph.size.width, height: glyph.size.height))
+            return true
+        }
+        canvas.isTemplate = true
+        button.image = canvas
+        DozerIcons.log.debug("stretched image: button width \(Int(button.bounds.width)), window \(Int(button.window?.frame.width ?? 0))")
     }
 
     private static let glyphInset: CGFloat = 6
@@ -124,7 +144,7 @@ final class StatusIcon {
 
     private var shownLength: CGFloat {
         let padding = AppSettings.shared.buttonPadding
-        guard kind == .bulldozer, let glyph = glyphView.image else {
+        guard kind == .bulldozer, let glyph else {
             return padding
         }
         return max(padding, glyph.size.width + Self.glyphInset * 2)
@@ -146,7 +166,8 @@ final class StatusIcon {
             return true
         }
         let point = button.convert(event.locationInWindow, from: nil)
-        return glyphView.frame.insetBy(dx: -Self.glyphInset, dy: -button.bounds.height).contains(point)
+        let glyphWidth = glyph?.size.width ?? 0
+        return point.x >= button.bounds.maxX - glyphWidth - Self.glyphInset * 2
     }
 
     @objc

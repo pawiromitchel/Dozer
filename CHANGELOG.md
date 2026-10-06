@@ -2,7 +2,7 @@
 
 ## Unreleased
 * **One bulldozer, no divider.** Dozer now uses a single menu bar item: click the bulldozer and everything to its left is hidden. The glyph is pinned to the item's right edge, so it stays put and clickable while the item stretches to push icons off-screen.
-* A badge on the bulldozer shows how many icons are hidden. It fades in and out, and the icon never changes size, so nothing jumps.
+* A badge on the bulldozer shows how many icons are hidden. The icon never changes size, so nothing jumps.
 * The bulldozer glyph is traced from the app icon and follows the menu bar's light/dark appearance.
 * New demo GIF (about 150 KB, down from 3 MB), generated from the app's real drawing code with `make demo-gif`.
 * Checked memory (#211): about 55–65 MB and flat across 120 hide/show cycles.
