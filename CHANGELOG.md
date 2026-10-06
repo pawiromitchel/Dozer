@@ -1,5 +1,10 @@
 # Changelog
 
+## Version 5.1.1
+* No more gap left of the bulldozer. The invisible wall is taken out of the menu bar while icons are shown (even at zero width a menu bar item gets ~16pt of padding), and the bulldozer is sized by macOS like any other icon (39pt instead of 51pt).
+* No padding flash when showing icons.
+* The bulldozer reacts on mouse-down. Hiding takes ~25ms; showing takes ~0.5s, which is macOS 26 bringing the pushed-off icons back (the same for every menu bar hider that uses this technique).
+
 ## Version 5.1.0
 * **One bulldozer instead of two dots.** Click it to hide every icon to its left. ⌘-drag it anywhere; Dozer keeps an invisible "wall" glued to its left that does the hiding (macOS 26 doesn't draw a menu bar item stretched past the screen edge, so the bulldozer itself never stretches).
 * A badge on the bulldozer shows how many icons are hidden, up to "99+". The icon never changes size, so nothing jumps.

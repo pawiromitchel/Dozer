@@ -55,8 +55,10 @@ final class StatusIcon {
         if let button = item.button {
             button.target = self
             button.action = #selector(clicked(_:))
-            // Mouse-up, not mouse-down: macOS 26 won't resize an item while it's being pressed.
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            // macOS 26 won't resize an item while it's being pressed, so the remove icon (which resizes
+            // itself) acts on mouse-up. The bulldozer never resizes, so it reacts on mouse-down: the
+            // reveal already takes ~0.5s in macOS, no need to also wait for the button to come up.
+            button.sendAction(on: kind == .remove ? [.leftMouseUp, .rightMouseUp] : [.leftMouseDown, .rightMouseDown])
             button.imageScaling = .scaleNone
             switch kind {
             case .bulldozer: button.setAccessibilityLabel("Dozer")
