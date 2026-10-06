@@ -10,6 +10,7 @@ import os
 /// Owns Dozer's status icons and the show/hide logic.
 ///
 /// - The bulldozer: clicking it hides/shows everything to its left. While hidden it shows how many.
+/// - The wall: an invisible item glued directly left of the bulldozer that stretches to do the hiding.
 /// - (Optional) The "remove" icon: it and everything to its left stays hidden until option-click.
 ///
 /// In "no icon" mode (requires a keyboard shortcut) the bulldozer hides itself too.
@@ -20,7 +21,9 @@ final class DozerIcons {
 
     private let settings = AppSettings.shared
     private var bulldozer: StatusIcon?
+    private var wall: StatusIcon?
     private var removeIcon: StatusIcon?
+    private var gluedPosition: Double?
     private var autoHideTimer: Timer?
     private var lastInteraction = Date()
     private var previousApp: NSRunningApplication?
@@ -32,11 +35,11 @@ final class DozerIcons {
     private init() {}
 
     func start() {
-        // Reuses the separator's saved position from earlier versions, so hidden icons stay hidden.
-        bulldozer = StatusIcon(kind: .bulldozer, autosaveName: "Dozer-Separator") { [weak self] icon, event in
+        migratePosition()
+        bulldozer = StatusIcon(kind: .bulldozer, autosaveName: Self.bulldozerName) { [weak self] icon, event in
             self?.handleClick(on: icon, event: event)
         }
-        updateNoIconMode()
+        glueWall()
         updateRemoveIcon()
         revealIcons()
         observeSettings()
@@ -57,8 +60,49 @@ final class DozerIcons {
 
     // MARK: Icons
 
-    private func updateNoIconMode() {
-        bulldozer?.hidesGlyphWhenCollapsed = isNoIconModeActive
+    private static let bulldozerName = "Dozer-Bulldozer"
+    private static let wallName = "Dozer-Wall"
+
+    /// macOS stores each item's position under this key: the distance from the right end of the menu
+    /// bar, so a larger value is further left.
+    private static func positionKey(_ name: String) -> String {
+        "NSStatusItem Preferred Position \(name)"
+    }
+
+    /// Earlier builds used the separator's spot for the hiding boundary; start the bulldozer there.
+    private func migratePosition(defaults: UserDefaults = .standard) {
+        let key = Self.positionKey(Self.bulldozerName)
+        guard defaults.object(forKey: key) == nil,
+              let old = defaults.object(forKey: Self.positionKey("Dozer-Separator")) else {
+            return
+        }
+        defaults.set(old, forKey: key)
+    }
+
+    /// (Re)creates the wall directly left of the bulldozer. macOS only places an item at its saved
+    /// position when it's created, so moving the wall means recreating it.
+    private func glueWall(defaults: UserDefaults = .standard) {
+        let wasHidden = isHidden
+        wall?.remove()
+        let position = defaults.object(forKey: Self.positionKey(Self.bulldozerName)) as? Double
+        if let position {
+            defaults.set(position + 1, forKey: Self.positionKey(Self.wallName))
+        }
+        gluedPosition = position
+        wall = StatusIcon(kind: .wall, autosaveName: Self.wallName) { _, _ in }
+        if wasHidden {
+            wall?.hide()
+        }
+        Self.log.debug("wall glued at \(position ?? -1)")
+    }
+
+    /// Called when defaults change: if the user ⌘-dragged the bulldozer, bring the wall along.
+    private func bulldozerMaybeMoved(defaults: UserDefaults = .standard) {
+        let position = defaults.object(forKey: Self.positionKey(Self.bulldozerName)) as? Double
+        guard let position, position != gluedPosition, !isHidden else {
+            return
+        }
+        glueWall()
     }
 
     private func updateRemoveIcon() {
@@ -75,13 +119,16 @@ final class DozerIcons {
     // MARK: Actions
 
     var isHidden: Bool {
-        !(bulldozer?.isShown ?? true)
+        !(wall?.isShown ?? true)
     }
 
     func hide() {
         Self.log.debug("hide")
         removeIcon?.hide()
-        bulldozer?.hide()
+        wall?.hide()
+        if isNoIconModeActive {
+            bulldozer?.hide()
+        }
         stopAutoHideTimer()
         hideIconAndMenu()
         logLayout()
@@ -101,6 +148,7 @@ final class DozerIcons {
     /// Shows the first group of icons; the "remove" group stays hidden.
     private func revealIcons() {
         removeIcon?.hide()
+        wall?.show()
         bulldozer?.show()
         updateCount()
         didShow()
@@ -108,10 +156,10 @@ final class DozerIcons {
 
     /// While hidden, the bulldozer shows how many icons it dozered.
     private func updateCount() {
-        guard let bulldozer else {
+        guard let bulldozer, let wall else {
             return
         }
-        if isHidden, let count = HiddenItems.count(leftOf: bulldozer, excluding: removeIcon.map { [$0] } ?? []) {
+        if isHidden, let count = HiddenItems.count(leftOf: wall, excluding: removeIcon.map { [$0] } ?? []) {
             Self.log.debug("hidden items: \(count)")
             bulldozer.hiddenCount = count
         } else {
@@ -126,6 +174,7 @@ final class DozerIcons {
     /// Shows everything, including icons behind the "remove" icon.
     func showAll() {
         Self.log.debug("showAll")
+        wall?.show()
         bulldozer?.show()
         removeIcon?.show()
         updateCount()
@@ -211,6 +260,7 @@ final class DozerIcons {
         }
         showIconAndMenu()
         if isHidden {
+            wall?.show()
             bulldozer?.show()
             removeIcon.show()
         } else {
@@ -327,6 +377,11 @@ final class DozerIcons {
     }
 
     private func observeSystem() {
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
+            .sink { [weak self] _ in self?.bulldozerMaybeMoved() }
+            .store(in: &cancellables)
+
         // Icons can be re-laid out after waking, unlocking or display changes; re-apply our state.
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         let names: [(NotificationCenter, Notification.Name)] = [
@@ -352,7 +407,6 @@ final class DozerIcons {
     }
 
     func shortcutDidChange() {
-        updateNoIconMode()
         revealIcons()
     }
 
@@ -364,7 +418,7 @@ final class DozerIcons {
                     return
                 }
                 let layout = allIcons.map { icon in
-                    let role = icon.kind == .remove ? "remove" : "bulldozer"
+                    let role = String(describing: icon.kind)
                     return "\(role)@\(icon.xPosition.map { String(Int($0)) } ?? "?")(\(icon.isShown ? "shown" : "collapsed"))"
                 }
                 Self.log.debug("layout+\(delay)s: \(layout.joined(separator: " "), privacy: .public) hidden=\(self.isHidden)")
@@ -373,6 +427,6 @@ final class DozerIcons {
     }
 
     private var allIcons: [StatusIcon] {
-        [bulldozer, removeIcon].compactMap { $0 }
+        [bulldozer, wall, removeIcon].compactMap { $0 }
     }
 }
