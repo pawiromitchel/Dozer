@@ -9,7 +9,7 @@
 	<a href="https://opensource.org/licenses/MPL-2.0"><img src="https://img.shields.io/badge/License-MPL%202.0-orange.svg" alt="license"></a>
 </p>
 <p align="center">
-	<img width="720" src="Stuff/demo.gif" alt="Dozer demo: ⌘-drag icons left of the divider, click the bulldozer to hide them, and it shows how many are hidden">
+	<img width="720" src="Stuff/demo.gif" alt="Dozer demo: ⌘-drag icons left of the bulldozer, click it to hide them, and a badge shows how many are hidden">
 </p>
 
 > **Community fork.** [Mortennn/Dozer](https://github.com/Mortennn/Dozer) has been unmaintained since 2021.
@@ -49,18 +49,18 @@ git clone https://github.com/pawiromitchel/Dozer && cd Dozer && make install
 
 Your settings and keyboard shortcut from Dozer 4.x carry over automatically.
 
-## ⚫️ How it works
+## 🚜 How it works
 
-Dozer adds **a small bulldozer** to your menu bar, plus a faint divider line just left of it.
+Dozer adds **one bulldozer** to your menu bar. Everything to its left gets dozered.
 
-* Hold ⌘ and drag the icons you want to hide to the **left of the divider**
-* Click the bulldozer to hide them. It then shows how many icons are hidden, e.g. **3 🚜**
-* Click it again to bring them back. The divider disappears while icons are hidden
+* Hold ⌘ and drag the bulldozer to where you want it. Icons left of it get hidden; icons right of it always stay visible
+* Click the bulldozer to hide them. A badge on it shows how many it dozered
+* Click again to bring them back
 
-Dozer remembers where you put the bulldozer and the divider.
+Dozer remembers where you put the bulldozer.
 
 ## 👇 Interactions
-* Click the bulldozer to hide/show the icons left of the divider
+* Click the bulldozer to hide/show the icons to its left
 * Right-click (or control-click) the bulldozer for Settings, Show All Icons, updates and Quit
 * Set a global keyboard shortcut in Settings. With a shortcut you can also hide the bulldozer itself
 * Optional: enable the small "remove" dot in Settings for a second group, revealed with option-click

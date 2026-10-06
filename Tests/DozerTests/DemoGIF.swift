@@ -4,7 +4,7 @@ import Testing
 import UniformTypeIdentifiers
 @testable import Dozer
 
-/// Renders the README demo (Stuff/demo.gif) with Dozer's real glyph and divider drawing code.
+/// Renders the README demo (Stuff/demo.gif) with Dozer's real glyph drawing code.
 ///   make demo-gif
 @MainActor
 struct DemoGIF {
@@ -133,12 +133,9 @@ struct DemoGIF {
         if t < dragStart + (dragEnd - dragStart) / 2 {
             place(Self.dragged)
         }
-        let glyphWidth = DozerGlyph.image(height: 14).size.width + 12
+        let glyphWidth = DozerGlyph.image(height: 16).size.width + 12
         positions["dozer"] = right - glyphWidth / 2
         right -= glyphWidth
-        positions["divider"] = right - 6
-        let dividerX = right - 6
-        right -= 12
         if t >= dragStart + (dragEnd - dragStart) / 2 {
             place(Self.dragged)
         }
@@ -170,12 +167,17 @@ struct DemoGIF {
                        pointSize: 14, alpha: alpha * (lifted > 0 ? 0.75 : 1))
         }
 
-        // Divider (visible only while shown) and the Dozer glyph with its count.
-        drawImage(StatusIcon.divider(height: 14), centeredAt: CGPoint(x: dividerX, y: Self.barHeight / 2), alpha: 1 - hideProgress)
-        let glyph = isHidden ? DozerGlyph.image(height: 14, count: Self.hideable.count + 1) : DozerGlyph.image(height: 14)
+        // The bulldozer, with its count while hidden.
+        // The badge fades in after hiding and out on show, like the app's 0.25s crossfade.
+        let badgeAlpha = progress(t, hideEnd - 0.05, hideEnd + 0.2) * (1 - progress(t, showClick, showClick + 0.25))
         let dozerCenter = positions["dozer"] ?? 0
-        let glyphRight = dozerCenter + DozerGlyph.image(height: 14).size.width / 2
-        drawImage(glyph, at: CGPoint(x: glyphRight - glyph.size.width, y: Self.barHeight / 2 - 7))
+        // Menu bar items grow leftwards: the right edge stays put when the count appears.
+        let glyphRight = dozerCenter + DozerGlyph.image(height: 16).size.width / 2
+        let plain = DozerGlyph.image(height: 16)
+        let badged = DozerGlyph.image(height: 16, count: Self.hideable.count + 1)
+        let origin = CGPoint(x: glyphRight - plain.size.width, y: Self.barHeight / 2 - 8)
+        drawImage(plain, at: origin, alpha: 1 - badgeAlpha)
+        drawImage(badged, at: origin, alpha: badgeAlpha)
 
         // Fixed items.
         for item in Self.fixedRight {
@@ -216,7 +218,7 @@ struct DemoGIF {
 
         let caption: String?
         switch t {
-        case 0.6..<(dragEnd + 0.5): caption = "⌘ + drag icons left of the line"
+        case 0.6..<(dragEnd + 0.5): caption = "⌘ + drag icons left of the bulldozer"
         case (hideClick - 0.3)..<(showClick - 0.4): caption = isHidden || t < hideEnd ? "Click to hide — Dozer counts them" : nil
         case (showClick - 0.3)..<(showClick + 1.4): caption = "Click to show"
         default: caption = nil

@@ -10,7 +10,53 @@ enum DozerGlyph {
     /// The app icon's bulldozer spans this box (in its 1024px artwork); the glyph is drawn in those units.
     private static let artBox = CGRect(x: 150, y: 262, width: 732, height: 515)
 
-    static func image(height: CGFloat) -> NSImage {
+    /// The menu bar icon: the bulldozer, with room for a badge in its top-right corner.
+    ///
+    /// The canvas is the same size with or without a count, so the icon never shifts when the
+    /// badge appears (menu bar items grow leftwards, so a wider image would move the bulldozer).
+    static func image(height: CGFloat, count: Int? = nil) -> NSImage {
+        let badgeDiameter = round(height * 0.62)
+        let glyph = bulldozer(height: round(height * 0.82))
+        let size = NSSize(width: ceil(glyph.size.width + badgeDiameter * 0.4), height: height)
+        let image = NSImage(size: size, flipped: false) { rect in
+            glyph.draw(in: NSRect(origin: .zero, size: glyph.size))
+            if let count, count > 0 {
+                drawBadge(count: count, diameter: badgeDiameter, in: rect)
+            }
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = count.map { "Dozer, \($0) hidden" } ?? "Dozer"
+        return image
+    }
+
+    /// A badge in the top-right corner with the number knocked out, separated from the bulldozer by a gap.
+    private static func drawBadge(count: Int, diameter: CGFloat, in rect: NSRect) {
+        guard let context = NSGraphicsContext.current else {
+            return
+        }
+        let text = count > 99 ? "99+" : String(count)
+        let baseFont = NSFont.systemFont(ofSize: diameter * 0.78, weight: .heavy)
+        let font = baseFont.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: baseFont.pointSize) } ?? baseFont
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+        let textSize = (text as NSString).size(withAttributes: attributes)
+        let width = max(diameter, ceil(textSize.width + diameter * 0.45))
+        let badge = NSRect(x: rect.maxX - width, y: rect.maxY - diameter, width: width, height: diameter)
+        let badgePath = { (frame: NSRect) in NSBezierPath(roundedRect: frame, xRadius: frame.height / 2, yRadius: frame.height / 2) }
+
+        context.compositingOperation = .destinationOut
+        badgePath(badge.insetBy(dx: -1.2, dy: -1.2)).fill()
+        context.compositingOperation = .sourceOver
+        NSColor.black.setFill()
+        badgePath(badge).fill()
+        context.compositingOperation = .destinationOut
+        (text as NSString).draw(at: NSPoint(x: badge.midX - textSize.width / 2, y: badge.midY - textSize.height / 2),
+                                withAttributes: attributes)
+        context.compositingOperation = .sourceOver
+    }
+
+    /// Just the bulldozer, `height` points tall.
+    static func bulldozer(height: CGFloat) -> NSImage {
         let scale = height / artBox.height
         let size = NSSize(width: ceil(artBox.width * scale), height: height)
         let image = NSImage(size: size, flipped: true) { _ in
@@ -25,27 +71,6 @@ enum DozerGlyph {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = "Dozer"
-        return image
-    }
-
-    /// A number followed by the glyph, e.g. "3 🚜" for three hidden icons (they sit to its left).
-    static func image(height: CGFloat, count: Int) -> NSImage {
-        let glyph = image(height: height)
-        let text = count > 99 ? "99+" : String(count)
-        let font = NSFont.monospacedDigitSystemFont(ofSize: height * 0.85, weight: .semibold)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
-        let textSize = (text as NSString).size(withAttributes: attributes)
-        let spacing = round(height * 0.25)
-        let textWidth = ceil(textSize.width)
-        let size = NSSize(width: textWidth + spacing + glyph.size.width, height: height)
-        let image = NSImage(size: size, flipped: false) { rect in
-            (text as NSString).draw(at: NSPoint(x: 0, y: rect.midY - textSize.height / 2), withAttributes: attributes)
-            glyph.draw(in: NSRect(origin: NSPoint(x: textWidth + spacing, y: 0), size: glyph.size))
-            return true
-        }
-        image.isTemplate = true
-        image.accessibilityDescription = "Dozer, \(count) hidden"
         return image
     }
 

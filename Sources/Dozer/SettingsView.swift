@@ -50,7 +50,7 @@ struct SettingsView: View {
             } header: {
                 Text("Icons")
             } footer: {
-                Text("⌘-drag menu bar icons to the left of Dozer’s faint divider line to hide them when you click the bulldozer. While hidden, it shows how many icons are hidden. Icons left of the small “remove” dot stay hidden until you option-click. Showing Dozer’s menu replaces the current app’s menu to free up room.")
+                Text("⌘-drag the bulldozer to where you want it: clicking it hides every icon to its left, and a badge shows how many. Icons left of the small “remove” dot stay hidden until you option-click. Showing Dozer’s menu replaces the current app’s menu to free up room.")
                     .foregroundStyle(.secondary)
             }
 

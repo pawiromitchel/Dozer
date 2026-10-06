@@ -6,38 +6,36 @@ import Cocoa
 
 /// One of Dozer's menu bar items.
 ///
-/// Hiding works by growing the item to a huge length, which pushes every
-/// status item to its left off the screen.
+/// Hiding works by growing the item to a huge length, which pushes every status item to its left off
+/// the screen. Items grow leftwards, so the bulldozer is pinned to the item's right edge: it stays put,
+/// clickable, while the invisible rest of the item does the dozing.
 @MainActor
 final class StatusIcon {
     enum Kind {
-        /// The regular dots. The leftmost one is the separator; the other one is a click target.
-        case normal
+        /// The bulldozer: everything to its left is hidden/shown on click.
+        case bulldozer
         /// The optional, smaller "remove" dot used with option-click.
         case remove
     }
 
-    enum Style: Equatable {
-        /// The clickable Dozer glyph.
-        case dot
-        /// The glyph followed by how many icons are hidden.
-        case badge(Int)
-        /// A faint line marking where hidden icons start; only visible while icons are shown.
-        case divider
-    }
-
     static let collapsedLength: CGFloat = 10_000
-    private static let dividerLength: CGFloat = 12
 
     let kind: Kind
-    var style: Style = .dot {
+    let item: NSStatusItem
+    /// How many icons are hidden; shown next to the bulldozer while collapsed.
+    var hiddenCount: Int? {
         didSet {
-            if style != oldValue {
+            if hiddenCount != oldValue {
                 updateAppearance()
             }
         }
     }
-    let item: NSStatusItem
+    /// Hides the bulldozer glyph itself while collapsed ("no icon" mode, shortcut only).
+    var hidesGlyphWhenCollapsed = false {
+        didSet { updateGlyphVisibility() }
+    }
+
+    private let glyphView = NSImageView()
     private let onClick: (StatusIcon, NSEvent?) -> Void
 
     init(kind: Kind, autosaveName: String, onClick: @escaping (StatusIcon, NSEvent?) -> Void) {
@@ -51,10 +49,21 @@ final class StatusIcon {
         if let button = item.button {
             button.target = self
             button.action = #selector(clicked(_:))
-            // Mouse-up, not mouse-down: macOS 26 won't resize an item while it's being pressed,
-            // so clicking the separator itself failed to collapse it.
+            // Mouse-up, not mouse-down: macOS 26 won't resize an item while it's being pressed.
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.setAccessibilityLabel(kind == .remove ? "Dozer secondary separator" : "Dozer")
+            // A stretched item would otherwise highlight across the whole menu bar when clicked.
+            (button.cell as? NSButtonCell)?.highlightsBy = []
+
+            if kind == .bulldozer {
+                glyphView.translatesAutoresizingMaskIntoConstraints = false
+                glyphView.imageScaling = .scaleNone
+                button.addSubview(glyphView)
+                NSLayoutConstraint.activate([
+                    glyphView.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -Self.glyphInset),
+                    glyphView.centerYAnchor.constraint(equalTo: button.centerYAnchor)
+                ])
+            }
         }
         updateAppearance()
     }
@@ -67,10 +76,12 @@ final class StatusIcon {
 
     func show() {
         item.length = shownLength
+        updateGlyphVisibility()
     }
 
     func hide() {
         item.length = Self.collapsedLength
+        updateGlyphVisibility()
     }
 
     func toggle() {
@@ -79,47 +90,44 @@ final class StatusIcon {
 
     /// Re-applies style and size settings without changing the shown/hidden state.
     func updateAppearance() {
-        let image = self.image
-        item.button?.image = image
-        item.button?.setAccessibilityValue(style == .divider ? nil : badgeAccessibilityValue)
+        switch kind {
+        case .remove:
+            item.button?.image = Self.dot(diameter: CGFloat(AppSettings.shared.iconSize) / 2)
+        case .bulldozer:
+            let glyph = DozerGlyph.image(height: glyphHeight, count: hiddenCount)
+            if glyphView.image != nil {
+                // Fade the badge in and out; the icon's size never changes, so nothing jumps.
+                glyphView.wantsLayer = true
+                let fade = CATransition()
+                fade.type = .fade
+                fade.duration = 0.25
+                glyphView.layer?.add(fade, forKey: "badge")
+            }
+            glyphView.image = glyph
+            item.button?.setAccessibilityValue(hiddenCount.map { "\($0) hidden" })
+        }
         if isShown {
             item.length = shownLength
         }
     }
 
-    private var image: NSImage {
-        let size = CGFloat(AppSettings.shared.iconSize)
-        switch (kind, style) {
-        case (.remove, _):
-            return Self.dot(diameter: size / 2)
-        case (_, .divider):
-            return Self.divider(height: max(size + 4, 12))
-        case (_, .badge(let count)) where count > 0:
-            return DozerGlyph.image(height: glyphHeight, count: count)
-        default:
-            return DozerGlyph.image(height: glyphHeight)
-        }
+    private func updateGlyphVisibility() {
+        glyphView.isHidden = hidesGlyphWhenCollapsed && !isShown
     }
 
-    /// The "icon size" setting (6–16, default 10) mapped to a glyph height that suits the menu bar.
+    private static let glyphInset: CGFloat = 6
+
+    /// The "icon size" setting (6–16, default 10) mapped to an icon height that suits the menu bar.
     private var glyphHeight: CGFloat {
-        CGFloat(AppSettings.shared.iconSize) + 4
+        CGFloat(AppSettings.shared.iconSize) + 6
     }
 
     private var shownLength: CGFloat {
         let padding = AppSettings.shared.buttonPadding
-        if style == .divider, kind == .normal {
-            return Self.dividerLength
+        guard kind == .bulldozer, let glyph = glyphView.image else {
+            return padding
         }
-        // Wide badges ("12") need more room than the configured spacing.
-        return max(padding, (item.button?.image?.size.width ?? 0) + 10)
-    }
-
-    private var badgeAccessibilityValue: String? {
-        if case .badge(let count) = style, count > 0 {
-            return "\(count) hidden"
-        }
-        return nil
+        return max(padding, glyph.size.width + Self.glyphInset * 2)
     }
 
     /// Left edge of the icon on screen, or `nil` if it is not currently laid out.
@@ -130,21 +138,26 @@ final class StatusIcon {
         return window.frame.minX
     }
 
+    /// While collapsed, the item spans the empty menu bar to the bulldozer's left; only clicks on
+    /// the bulldozer itself count.
+    private func isOnGlyph(_ event: NSEvent?) -> Bool {
+        guard kind == .bulldozer, !isShown, let event, let button = item.button,
+              event.window === button.window else {
+            return true
+        }
+        let point = button.convert(event.locationInWindow, from: nil)
+        return glyphView.frame.insetBy(dx: -Self.glyphInset, dy: -button.bounds.height).contains(point)
+    }
+
     @objc
     private func clicked(_ sender: Any?) {
         let event = NSApp.currentEvent
-        DozerIcons.log.debug("click on \(self.kind == .remove ? "remove" : "normal", privacy: .public) icon, event: \(event.map { "\($0.type.rawValue) flags=\($0.modifierFlags.rawValue)" } ?? "nil", privacy: .public)")
-        onClick(self, event)
-    }
-
-    static func divider(height: CGFloat) -> NSImage {
-        let image = NSImage(size: NSSize(width: 2, height: height), flipped: false) { rect in
-            NSColor.black.withAlphaComponent(0.35).setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 1, yRadius: 1).fill()
-            return true
+        let onGlyph = isOnGlyph(event)
+        DozerIcons.log.debug("click on \(self.kind == .remove ? "remove" : "bulldozer", privacy: .public), event: \(event.map { "\($0.type.rawValue) flags=\($0.modifierFlags.rawValue)" } ?? "nil", privacy: .public) onGlyph=\(onGlyph)")
+        guard onGlyph else {
+            return
         }
-        image.isTemplate = true
-        return image
+        onClick(self, event)
     }
 
     /// Each icon gets its own image instance; sharing one let the remove icon resize the normal icons.

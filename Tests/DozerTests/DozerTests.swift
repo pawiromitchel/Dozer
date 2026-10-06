@@ -139,19 +139,18 @@ struct HiddenItemsTests {
 
 @MainActor
 struct GlyphTests {
-    @Test func glyphKeepsArtworkAspectRatio() {
-        let glyph = DozerGlyph.image(height: 14)
-        #expect(glyph.size.height == 14)
-        #expect(glyph.size.width == 20)
-        #expect(glyph.isTemplate)
+    @Test func badgeDoesNotChangeIconSize() {
+        // A size change would shift the bulldozer, since menu bar items grow leftwards.
+        let plain = DozerGlyph.image(height: 16)
+        #expect(plain.size.height == 16)
+        for count in [1, 9, 12, 150] {
+            #expect(DozerGlyph.image(height: 16, count: count).size == plain.size)
+        }
+        #expect(plain.isTemplate)
     }
 
-    @Test func countWidensImage() {
-        let plain = DozerGlyph.image(height: 14)
-        let three = DozerGlyph.image(height: 14, count: 3)
-        let twelve = DozerGlyph.image(height: 14, count: 12)
-        #expect(three.size.width > plain.size.width)
-        #expect(twelve.size.width > three.size.width)
-        #expect(three.isTemplate)
+    @Test func bulldozerKeepsArtworkAspectRatio() {
+        let glyph = DozerGlyph.bulldozer(height: 14)
+        #expect(glyph.size == NSSize(width: 20, height: 14))
     }
 }

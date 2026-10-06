@@ -9,19 +9,17 @@ import os
 
 /// Owns Dozer's status icons and the show/hide logic.
 ///
-/// Icons, numbered right to left:
-/// 1. A click target that can sit anywhere.
-/// 2. The separator: it and everything to its left is hidden/shown on click.
-/// 3. (Optional) The "remove" icon: it and everything to its left is hidden/shown on option-click.
+/// - The bulldozer: clicking it hides/shows everything to its left. While hidden it shows how many.
+/// - (Optional) The "remove" icon: it and everything to its left stays hidden until option-click.
 ///
-/// In "no icon" mode (requires a keyboard shortcut) only the separator exists, and it hides itself too.
+/// In "no icon" mode (requires a keyboard shortcut) the bulldozer hides itself too.
 @MainActor
 final class DozerIcons {
     static let shared = DozerIcons()
     static let log = Logger(subsystem: "com.mortennn.Dozer", category: "icons")
 
     private let settings = AppSettings.shared
-    private var normalIcons: [StatusIcon] = []
+    private var bulldozer: StatusIcon?
     private var removeIcon: StatusIcon?
     private var autoHideTimer: Timer?
     private var lastInteraction = Date()
@@ -34,13 +32,13 @@ final class DozerIcons {
     private init() {}
 
     func start() {
-        rebuildNormalIcons()
+        // Reuses the separator's saved position from earlier versions, so hidden icons stay hidden.
+        bulldozer = StatusIcon(kind: .bulldozer, autosaveName: "Dozer-Separator") { [weak self] icon, event in
+            self?.handleClick(on: icon, event: event)
+        }
+        updateNoIconMode()
         updateRemoveIcon()
         revealIcons()
-        // Roles follow position, which macOS restores shortly after the items are created.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.updateStyles()
-        }
         observeSettings()
         observeSystem()
         KeyboardShortcuts.onKeyUp(for: .toggleMenuItems) { [weak self] in
@@ -59,22 +57,8 @@ final class DozerIcons {
 
     // MARK: Icons
 
-    private static let autosaveNames = ["Dozer-Separator", "Dozer-Handle"]
-
-    /// Ensures the right number of normal icons exist (1 in no-icon mode, otherwise 2).
-    func rebuildNormalIcons() {
-        let wanted = isNoIconModeActive ? 1 : 2
-        while normalIcons.count > wanted, let right = rightIcon {
-            right.remove()
-            normalIcons.removeAll { $0 === right }
-        }
-        while normalIcons.count < wanted {
-            let used = Set(normalIcons.map { $0.item.autosaveName ?? "" })
-            let name = Self.autosaveNames.first { !used.contains($0) } ?? "Dozer-\(normalIcons.count)"
-            normalIcons.append(StatusIcon(kind: .normal, autosaveName: name) { [weak self] icon, event in
-                self?.handleClick(on: icon, event: event)
-            })
-        }
+    private func updateNoIconMode() {
+        bulldozer?.hidesGlyphWhenCollapsed = isNoIconModeActive
     }
 
     private func updateRemoveIcon() {
@@ -88,36 +72,22 @@ final class DozerIcons {
         }
     }
 
-    /// The separator: the collapsed icon if there is one, otherwise the leftmost.
-    private var leftIcon: StatusIcon? {
-        normalIcons.first { !$0.isShown }
-            ?? normalIcons.min { ($0.xPosition ?? .infinity) < ($1.xPosition ?? .infinity) }
-    }
-
-    private var rightIcon: StatusIcon? {
-        normalIcons.last { $0 !== leftIcon } ?? normalIcons.last
-    }
-
     // MARK: Actions
 
     var isHidden: Bool {
-        !(leftIcon?.isShown ?? true)
+        !(bulldozer?.isShown ?? true)
     }
 
     func hide() {
         Self.log.debug("hide")
         removeIcon?.hide()
-        if isNoIconModeActive {
-            normalIcons.forEach { $0.hide() }
-        } else {
-            leftIcon?.hide()
-        }
+        bulldozer?.hide()
         stopAutoHideTimer()
         hideIconAndMenu()
         logLayout()
         // Count once the items have been pushed off-screen.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.updateStyles()
+            self?.updateCount()
         }
     }
 
@@ -131,24 +101,21 @@ final class DozerIcons {
     /// Shows the first group of icons; the "remove" group stays hidden.
     private func revealIcons() {
         removeIcon?.hide()
-        normalIcons.forEach { $0.show() }
-        updateStyles()
+        bulldozer?.show()
+        updateCount()
         didShow()
     }
 
-    /// One visible dot: the separator draws as a faint line (and vanishes when collapsed),
-    /// and the bulldozer shows how many icons are hidden.
-    private func updateStyles() {
-        guard normalIcons.count > 1, let separator = leftIcon, let handle = rightIcon else {
-            normalIcons.forEach { $0.style = .dot }
+    /// While hidden, the bulldozer shows how many icons it dozered.
+    private func updateCount() {
+        guard let bulldozer else {
             return
         }
-        separator.style = .divider
-        if isHidden, let count = HiddenItems.count(leftOf: separator, excluding: allIcons.filter { $0 !== separator }) {
+        if isHidden, let count = HiddenItems.count(leftOf: bulldozer, excluding: removeIcon.map { [$0] } ?? []) {
             Self.log.debug("hidden items: \(count)")
-            handle.style = .badge(count)
+            bulldozer.hiddenCount = count
         } else {
-            handle.style = .dot
+            bulldozer.hiddenCount = nil
         }
     }
 
@@ -159,27 +126,27 @@ final class DozerIcons {
     /// Shows everything, including icons behind the "remove" icon.
     func showAll() {
         Self.log.debug("showAll")
-        normalIcons.forEach { $0.show() }
+        bulldozer?.show()
         removeIcon?.show()
-        updateStyles()
+        updateCount()
         didShow()
         logLayout()
     }
 
-    /// First launch: explain where to put icons, anchored to the separator. Fresh dots appear left of
-    /// every other icon, so without this a click seems to do nothing.
+    /// First launch: explain where to put icons. The bulldozer first appears left of every other icon,
+    /// so without this a click seems to do nothing.
     func showOnboardingIfNeeded(defaults: UserDefaults = .standard) {
         let key = "didShowOnboarding"
-        guard !defaults.bool(forKey: key), let button = leftIcon?.item.button else {
+        guard !defaults.bool(forKey: key), let button = bulldozer?.item.button else {
             return
         }
         defaults.set(true, forKey: key)
 
         let label = NSTextField(wrappingLabelWithString: """
-            Icons to the left of this line are hidden when you click the Dozer bulldozer.
+            Click the bulldozer to hide every icon to its left.
 
-            Hold ⌘ and drag the icons you want to hide to the left of this line. \
-            Right-click the bulldozer for settings.
+            Hold ⌘ and drag icons you always want to see to the right of the bulldozer. \
+            Right-click it for settings.
             """)
         label.preferredMaxLayoutWidth = 260
         let container = NSView()
@@ -244,12 +211,12 @@ final class DozerIcons {
         }
         showIconAndMenu()
         if isHidden {
-            normalIcons.forEach { $0.show() }
+            bulldozer?.show()
             removeIcon.show()
         } else {
             removeIcon.toggle()
         }
-        updateStyles()
+        updateCount()
         didShow()
     }
 
@@ -385,7 +352,7 @@ final class DozerIcons {
     }
 
     func shortcutDidChange() {
-        rebuildNormalIcons()
+        updateNoIconMode()
         revealIcons()
     }
 
@@ -397,7 +364,7 @@ final class DozerIcons {
                     return
                 }
                 let layout = allIcons.map { icon in
-                    let role = icon.kind == .remove ? "remove" : (icon === leftIcon ? "separator" : "handle")
+                    let role = icon.kind == .remove ? "remove" : "bulldozer"
                     return "\(role)@\(icon.xPosition.map { String(Int($0)) } ?? "?")(\(icon.isShown ? "shown" : "collapsed"))"
                 }
                 Self.log.debug("layout+\(delay)s: \(layout.joined(separator: " "), privacy: .public) hidden=\(self.isHidden)")
@@ -406,6 +373,6 @@ final class DozerIcons {
     }
 
     private var allIcons: [StatusIcon] {
-        normalIcons + (removeIcon.map { [$0] } ?? [])
+        [bulldozer, removeIcon].compactMap { $0 }
     }
 }
