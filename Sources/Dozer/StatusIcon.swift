@@ -10,8 +10,9 @@ import Cocoa
 /// screen. macOS 26 doesn't draw an item that no longer fits, so the stretching is done by an invisible
 /// "wall" glued to the bulldozer's left, and the bulldozer itself never stretches.
 ///
-/// Even at zero length an item takes ~16pt of padding, so while icons are shown the wall is removed
-/// from the menu bar entirely (`isVisible = false`) and comes back, re-glued, when hiding.
+/// Even at zero length an item takes ~16pt of padding, so the wall is never shrunk: while icons are
+/// shown it's out of the menu bar (`isVisible = false`), and it comes back already stretched, re-glued,
+/// when hiding. Removing it straight from stretched also avoids a brief padding flash on show.
 @MainActor
 final class StatusIcon {
     enum Kind {
@@ -25,9 +26,6 @@ final class StatusIcon {
     }
 
     static let collapsedLength: CGFloat = 10_000
-    /// macOS needs a moment to lay the icons back out after the wall shrinks; removing it sooner
-    /// leaves them off-screen.
-    private static let wallRemovalDelay: TimeInterval = 0.5
 
     let kind: Kind
     let item: NSStatusItem
@@ -45,7 +43,11 @@ final class StatusIcon {
     init(kind: Kind, autosaveName: String, onClick: @escaping (StatusIcon, NSEvent?) -> Void) {
         self.kind = kind
         self.onClick = onClick
-        item = NSStatusBar.system.statusItem(withLength: 0)
+        item = NSStatusBar.system.statusItem(withLength: kind == .wall ? Self.collapsedLength : 0)
+        if kind == .wall {
+            // Out of the menu bar until the first hide.
+            item.isVisible = false
+        }
         // Lets macOS remember where the user dragged the icon, across relaunches and reboots.
         item.autosaveName = autosaveName
         item.behavior = []
@@ -72,23 +74,12 @@ final class StatusIcon {
     func show() {
         isShown = true
         updateAppearance()
-        if kind == .wall {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.wallRemovalDelay) { [weak self] in
-                guard let self, self.isShown else {
-                    return
-                }
-                self.item.isVisible = false
-            }
-        }
     }
 
     /// The wall and the remove icon stretch to hide what's left of them; the bulldozer just disappears
     /// (only in "no icon" mode).
     func hide() {
         isShown = false
-        if kind == .wall {
-            item.isVisible = true
-        }
         updateAppearance()
     }
 
@@ -108,8 +99,10 @@ final class StatusIcon {
             // Sized by macOS like any other icon.
             item.length = isShown ? NSStatusItem.variableLength : 0
         case .wall:
+            // Never shrunk (see the type's docs): shown means out of the menu bar.
             button?.image = nil
-            item.length = isShown ? 0 : Self.collapsedLength
+            item.length = Self.collapsedLength
+            item.isVisible = !isShown
         case .remove:
             button?.image = Self.dot(diameter: CGFloat(AppSettings.shared.iconSize) / 2)
             item.length = isShown ? AppSettings.shared.buttonPadding : Self.collapsedLength
