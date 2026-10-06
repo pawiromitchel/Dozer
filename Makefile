@@ -24,7 +24,12 @@ install: app
 zip: app
 	@cd build && ditto -c -k --keepParent Dozer.app Dozer.zip && echo "Built build/Dozer.zip"
 
+# Regenerates the README demo with the app's real drawing code (Tests/DozerTests/DemoGIF.swift).
+demo-gif:
+	@DOZER_DEMO_GIF=$(CURDIR)/Stuff/demo.gif swift test --filter DemoGIF $(TEST_FLAGS)
+	@ls -lh Stuff/demo.gif
+
 clean:
 	@rm -rf .build build
 
-.PHONY: app debug run test install zip clean
+.PHONY: app debug run test install zip demo-gif clean

@@ -6,44 +6,40 @@ import Cocoa
 
 /// One of Dozer's menu bar items.
 ///
-/// Hiding works by growing the item to a huge length, which pushes every
-/// status item to its left off the screen.
+/// Hiding works by growing an item to a huge length, which pushes every status item to its left off the
+/// screen. macOS 26 doesn't draw an item that no longer fits, so the stretching is done by an invisible
+/// "wall" glued to the bulldozer's left, and the bulldozer itself never stretches.
 @MainActor
 final class StatusIcon {
     enum Kind {
-        /// The regular dots. The leftmost one is the separator; the other one is a click target.
-        case normal
+        /// The visible bulldozer: click it to hide/show everything to its left.
+        case bulldozer
+        /// Invisible, zero-width item directly left of the bulldozer that stretches to hide icons.
+        case wall
         /// The optional, smaller "remove" dot used with option-click.
         case remove
     }
 
-    enum Style: Equatable {
-        /// The clickable dot.
-        case dot
-        /// The dot showing how many icons are hidden.
-        case badge(Int)
-        /// A faint line marking where hidden icons start; only visible while icons are shown.
-        case divider
-    }
-
     static let collapsedLength: CGFloat = 10_000
-    private static let dividerLength: CGFloat = 12
+    private static let glyphInset: CGFloat = 6
 
     let kind: Kind
-    var style: Style = .dot {
+    let item: NSStatusItem
+    /// How many icons are hidden; shown as a badge on the bulldozer.
+    var hiddenCount: Int? {
         didSet {
-            if style != oldValue {
+            if hiddenCount != oldValue {
                 updateAppearance()
             }
         }
     }
-    let item: NSStatusItem
+    private(set) var isShown = true
     private let onClick: (StatusIcon, NSEvent?) -> Void
 
     init(kind: Kind, autosaveName: String, onClick: @escaping (StatusIcon, NSEvent?) -> Void) {
         self.kind = kind
         self.onClick = onClick
-        item = NSStatusBar.system.statusItem(withLength: AppSettings.shared.buttonPadding)
+        item = NSStatusBar.system.statusItem(withLength: 0)
         // Lets macOS remember where the user dragged the icon, across relaunches and reboots.
         item.autosaveName = autosaveName
         item.behavior = []
@@ -51,10 +47,14 @@ final class StatusIcon {
         if let button = item.button {
             button.target = self
             button.action = #selector(clicked(_:))
-            // Mouse-up, not mouse-down: macOS 26 won't resize an item while it's being pressed,
-            // so clicking the separator itself failed to collapse it.
+            // Mouse-up, not mouse-down: macOS 26 won't resize an item while it's being pressed.
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.setAccessibilityLabel(kind == .remove ? "Dozer secondary separator" : "Dozer")
+            button.imageScaling = .scaleNone
+            switch kind {
+            case .bulldozer: button.setAccessibilityLabel("Dozer")
+            case .wall: button.setAccessibilityElement(false)
+            case .remove: button.setAccessibilityLabel("Dozer secondary separator")
+            }
         }
         updateAppearance()
     }
@@ -63,58 +63,44 @@ final class StatusIcon {
         NSStatusBar.system.removeStatusItem(item)
     }
 
-    var isShown: Bool { item.length < Self.collapsedLength }
-
     func show() {
-        item.length = shownLength
+        isShown = true
+        updateAppearance()
     }
 
+    /// The wall and the remove icon stretch to hide what's left of them; the bulldozer just disappears
+    /// (only in "no icon" mode).
     func hide() {
-        item.length = Self.collapsedLength
+        isShown = false
+        updateAppearance()
     }
 
     func toggle() {
         isShown ? hide() : show()
     }
 
-    /// Re-applies style and size settings without changing the shown/hidden state.
+    /// Re-applies image and length for the current state and settings.
     func updateAppearance() {
-        let image = self.image
-        item.button?.image = image
-        item.button?.setAccessibilityValue(style == .divider ? nil : badgeAccessibilityValue)
-        if isShown {
-            item.length = shownLength
+        let button = item.button
+        switch kind {
+        case .bulldozer:
+            // Same size with or without the badge, so the bulldozer never shifts.
+            let glyph = DozerGlyph.image(height: glyphHeight, count: hiddenCount)
+            button?.image = isShown ? glyph : nil
+            button?.setAccessibilityValue(hiddenCount.map { "\($0) hidden" })
+            item.length = isShown ? max(AppSettings.shared.buttonPadding, glyph.size.width + Self.glyphInset * 2) : 0
+        case .wall:
+            button?.image = nil
+            item.length = isShown ? 0 : Self.collapsedLength
+        case .remove:
+            button?.image = Self.dot(diameter: CGFloat(AppSettings.shared.iconSize) / 2)
+            item.length = isShown ? AppSettings.shared.buttonPadding : Self.collapsedLength
         }
     }
 
-    private var image: NSImage {
-        let size = CGFloat(AppSettings.shared.iconSize)
-        switch (kind, style) {
-        case (.remove, _):
-            return Self.dot(diameter: size / 2)
-        case (_, .divider):
-            return Self.divider(height: max(size + 4, 12))
-        case (_, .badge(let count)) where count > 0:
-            return Self.badge(count: count, height: max(size + 5, 15))
-        default:
-            return Self.dot(diameter: size)
-        }
-    }
-
-    private var shownLength: CGFloat {
-        let padding = AppSettings.shared.buttonPadding
-        if style == .divider, kind == .normal {
-            return Self.dividerLength
-        }
-        // Wide badges ("12") need more room than the configured spacing.
-        return max(padding, (item.button?.image?.size.width ?? 0) + 10)
-    }
-
-    private var badgeAccessibilityValue: String? {
-        if case .badge(let count) = style, count > 0 {
-            return "\(count) hidden"
-        }
-        return nil
+    /// The "icon size" setting (6–16, default 10) mapped to an icon height that suits the menu bar.
+    private var glyphHeight: CGFloat {
+        CGFloat(AppSettings.shared.iconSize) + 6
     }
 
     /// Left edge of the icon on screen, or `nil` if it is not currently laid out.
@@ -128,40 +114,8 @@ final class StatusIcon {
     @objc
     private func clicked(_ sender: Any?) {
         let event = NSApp.currentEvent
-        DozerIcons.log.debug("click on \(self.kind == .remove ? "remove" : "normal", privacy: .public) icon, event: \(event.map { "\($0.type.rawValue) flags=\($0.modifierFlags.rawValue)" } ?? "nil", privacy: .public)")
+        DozerIcons.log.debug("click on \(String(describing: self.kind), privacy: .public), event: \(event.map { "\($0.type.rawValue) flags=\($0.modifierFlags.rawValue)" } ?? "nil", privacy: .public)")
         onClick(self, event)
-    }
-
-    /// A rounded badge with the number knocked out, so it adapts to light/dark menu bars as a template.
-    static func badge(count: Int, height: CGFloat) -> NSImage {
-        let text = count > 99 ? "99+" : String(count)
-        let font = NSFont.monospacedDigitSystemFont(ofSize: height * 0.68, weight: .bold)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
-        let textSize = (text as NSString).size(withAttributes: attributes)
-        let width = max(height, ceil(textSize.width + height * 0.5))
-        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
-            guard let context = NSGraphicsContext.current else {
-                return true
-            }
-            context.compositingOperation = .destinationOut
-            let origin = NSPoint(x: rect.midX - textSize.width / 2, y: rect.midY - textSize.height / 2)
-            (text as NSString).draw(at: origin, withAttributes: attributes)
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }
-
-    static func divider(height: CGFloat) -> NSImage {
-        let image = NSImage(size: NSSize(width: 2, height: height), flipped: false) { rect in
-            NSColor.black.withAlphaComponent(0.35).setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 1, yRadius: 1).fill()
-            return true
-        }
-        image.isTemplate = true
-        return image
     }
 
     /// Each icon gets its own image instance; sharing one let the remove icon resize the normal icons.

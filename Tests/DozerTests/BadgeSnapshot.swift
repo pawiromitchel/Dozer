@@ -7,8 +7,8 @@ struct BadgeSnapshot {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["DOZER_SNAPSHOT"] != nil))
     func menuBarPreview() throws {
         let path = try #require(ProcessInfo.processInfo.environment["DOZER_SNAPSHOT"])
-        let images: [NSImage] = [StatusIcon.divider(height: 14), StatusIcon.dot(diameter: 10),
-                                 StatusIcon.badge(count: 2, height: 15), StatusIcon.badge(count: 12, height: 15)]
+        let images: [NSImage] = [DozerGlyph.image(height: 16),
+                                 DozerGlyph.image(height: 16, count: 3), DozerGlyph.image(height: 16, count: 12)]
         let scale: CGFloat = 4
         let size = NSSize(width: 200 * scale, height: 33 * scale)
         let rep = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
