@@ -23,7 +23,6 @@ final class DozerIcons {
     private var bulldozer: StatusIcon?
     private var wall: StatusIcon?
     private var removeIcon: StatusIcon?
-    private var gluedPosition: Double?
     private var autoHideTimer: Timer?
     private var lastInteraction = Date()
     private var previousApp: NSRunningApplication?
@@ -40,6 +39,7 @@ final class DozerIcons {
             self?.handleClick(on: icon, event: event)
         }
         glueWall()
+        wall = StatusIcon(kind: .wall, autosaveName: Self.wallName) { _, _ in }
         updateRemoveIcon()
         revealIcons()
         observeSettings()
@@ -79,30 +79,27 @@ final class DozerIcons {
         defaults.set(old, forKey: key)
     }
 
-    /// (Re)creates the wall directly left of the bulldozer. macOS only places an item at its saved
-    /// position when it's created, so moving the wall means recreating it.
+    /// Puts the wall directly left of the bulldozer. macOS forgets a removed item's position, so this
+    /// runs before every hide; it also follows the bulldozer wherever the user ⌘-dragged it.
     private func glueWall(defaults: UserDefaults = .standard) {
-        let wasHidden = isHidden
-        wall?.remove()
-        let position = defaults.object(forKey: Self.positionKey(Self.bulldozerName)) as? Double
-        if let position {
-            defaults.set(position + 1, forKey: Self.positionKey(Self.wallName))
-        }
-        gluedPosition = position
-        wall = StatusIcon(kind: .wall, autosaveName: Self.wallName) { _, _ in }
-        if wasHidden {
-            wall?.hide()
-        }
-        Self.log.debug("wall glued at \(position ?? -1)")
-    }
-
-    /// Called when defaults change: if the user ⌘-dragged the bulldozer, bring the wall along.
-    private func bulldozerMaybeMoved(defaults: UserDefaults = .standard) {
-        let position = defaults.object(forKey: Self.positionKey(Self.bulldozerName)) as? Double
-        guard let position, position != gluedPosition, !isHidden else {
+        guard let position = bulldozerPosition(defaults: defaults) else {
             return
         }
-        glueWall()
+        defaults.set(position, forKey: Self.positionKey(Self.wallName))
+    }
+
+    /// Where the wall should go, in macOS's units (larger is further left). Prefers the bulldozer's saved
+    /// position, which macOS updates whenever the user drags it, plus 1. Before the first drag nothing is
+    /// saved, so it's estimated from the bulldozer's frame (distance from the screen's right edge); that
+    /// estimate can be off by a couple of points, hence the larger margin, still far less than an icon.
+    private func bulldozerPosition(defaults: UserDefaults) -> Double? {
+        if let saved = defaults.object(forKey: Self.positionKey(Self.bulldozerName)) as? Double {
+            return saved + 1
+        }
+        if let window = bulldozer?.item.button?.window, window.isVisible, let screen = window.screen {
+            return Double(screen.frame.maxX - window.frame.maxX) + 6
+        }
+        return nil
     }
 
     private func updateRemoveIcon() {
@@ -125,6 +122,7 @@ final class DozerIcons {
     func hide() {
         Self.log.debug("hide")
         removeIcon?.hide()
+        glueWall()
         wall?.hide()
         if isNoIconModeActive {
             bulldozer?.hide()
@@ -377,10 +375,6 @@ final class DozerIcons {
     }
 
     private func observeSystem() {
-        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
-            .sink { [weak self] _ in self?.bulldozerMaybeMoved() }
-            .store(in: &cancellables)
 
         // Icons can be re-laid out after waking, unlocking or display changes; re-apply our state.
         let workspaceCenter = NSWorkspace.shared.notificationCenter

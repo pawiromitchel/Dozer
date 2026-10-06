@@ -9,19 +9,25 @@ import Cocoa
 /// Hiding works by growing an item to a huge length, which pushes every status item to its left off the
 /// screen. macOS 26 doesn't draw an item that no longer fits, so the stretching is done by an invisible
 /// "wall" glued to the bulldozer's left, and the bulldozer itself never stretches.
+///
+/// Even at zero length an item takes ~16pt of padding, so while icons are shown the wall is removed
+/// from the menu bar entirely (`isVisible = false`) and comes back, re-glued, when hiding.
 @MainActor
 final class StatusIcon {
     enum Kind {
         /// The visible bulldozer: click it to hide/show everything to its left.
         case bulldozer
-        /// Invisible, zero-width item directly left of the bulldozer that stretches to hide icons.
+        /// Invisible item directly left of the bulldozer that stretches to hide icons; only in the menu bar
+        /// while hiding.
         case wall
         /// The optional, smaller "remove" dot used with option-click.
         case remove
     }
 
     static let collapsedLength: CGFloat = 10_000
-    private static let glyphInset: CGFloat = 6
+    /// macOS needs a moment to lay the icons back out after the wall shrinks; removing it sooner
+    /// leaves them off-screen.
+    private static let wallRemovalDelay: TimeInterval = 0.5
 
     let kind: Kind
     let item: NSStatusItem
@@ -66,12 +72,23 @@ final class StatusIcon {
     func show() {
         isShown = true
         updateAppearance()
+        if kind == .wall {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.wallRemovalDelay) { [weak self] in
+                guard let self, self.isShown else {
+                    return
+                }
+                self.item.isVisible = false
+            }
+        }
     }
 
     /// The wall and the remove icon stretch to hide what's left of them; the bulldozer just disappears
     /// (only in "no icon" mode).
     func hide() {
         isShown = false
+        if kind == .wall {
+            item.isVisible = true
+        }
         updateAppearance()
     }
 
@@ -88,7 +105,8 @@ final class StatusIcon {
             let glyph = DozerGlyph.image(height: glyphHeight, count: hiddenCount)
             button?.image = isShown ? glyph : nil
             button?.setAccessibilityValue(hiddenCount.map { "\($0) hidden" })
-            item.length = isShown ? max(AppSettings.shared.buttonPadding, glyph.size.width + Self.glyphInset * 2) : 0
+            // Sized by macOS like any other icon.
+            item.length = isShown ? NSStatusItem.variableLength : 0
         case .wall:
             button?.image = nil
             item.length = isShown ? 0 : Self.collapsedLength
