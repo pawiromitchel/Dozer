@@ -21,7 +21,8 @@ final class StatusIcon {
         case remove
     }
 
-    static let collapsedLength: CGFloat = 10_000
+    /// Used when the item's position is unknown, and for the invisible "remove" icon.
+    static let fallbackCollapsedLength: CGFloat = 10_000
 
     let kind: Kind
     let item: NSStatusItem
@@ -78,16 +79,31 @@ final class StatusIcon {
         NSStatusBar.system.removeStatusItem(item)
     }
 
-    var isShown: Bool { item.length < Self.collapsedLength }
+    private(set) var isShown = true
 
     func show() {
+        isShown = true
         item.length = shownLength
         renderButtonImage()
     }
 
     func hide() {
-        item.length = Self.collapsedLength
+        let length = collapsedLength
+        isShown = false
+        item.length = length
         renderButtonImage()
+    }
+
+    /// Just long enough to push everything left of the item past the screen's left edge.
+    ///
+    /// Not a fixed 10,000pt: macOS caps that around 5,000pt, and at 2x that's wider than the system
+    /// will draw, so the bulldozer drawn on a stretched item disappeared.
+    private var collapsedLength: CGFloat {
+        guard kind == .bulldozer, let window = item.button?.window, let screen = window.screen ?? NSScreen.main else {
+            return Self.fallbackCollapsedLength
+        }
+        // The right edge doesn't move while the item grows, so this also works when already collapsed.
+        return ceil(window.frame.maxX - screen.frame.minX + 8)
     }
 
     func toggle() {
