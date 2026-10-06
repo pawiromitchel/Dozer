@@ -19,18 +19,18 @@ If you have a good idea for a feature or enhancement open an issue.
 Refresh the Dozer icons or logo. [Design resources for logo and status bar icon](https://www.figma.com/file/g5MhiwxR1YFg5vti0tPANa/Dozer).
 
 ## Code
-You can submit your own code. This can be bug fixes or new features. Please ask me (@Mortennn) before implementing a new feature. Check out [Issues](https://github.com/Mortennn/Dozer/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc).
+You can submit your own code. This can be bug fixes or new features. For bigger features, open an issue first to discuss them. Check out [Issues](https://github.com/pawiromitchel/Dozer/issues).
 
 ### Getting started
-Make sure you have at least Xcode 10 installed.
+You need the Xcode Command Line Tools (`xcode-select --install`). Xcode itself is optional.
 
-Run the following command:
 ```shell
-git clone https://github.com/mortennn/dozer &&
-cd dozer &&
-make build
+git clone https://github.com/pawiromitchel/Dozer &&
+cd Dozer &&
+make run
 ```
-Done! The project should open automatically in Xcode.
+
+`make test` runs the unit tests. Opening the folder in Xcode works too, because Dozer is a plain Swift package.
 
 ### Submitting your pull request
 Please give a small summary of what has changed. Also add any github issues links (`Fixes #100`).
