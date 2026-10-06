@@ -1,6 +1,6 @@
 cask "dozer" do
-  version "5.1.0"
-  sha256 "81fa32f02571eab908723dfbb71739e646c81a389e9b09c320f47f000a27fe24"
+  version "5.1.1"
+  sha256 "fb8ee92459f558712b7cd9959ced96aec44babd5d83c9cc913aa70e68decd9be"
 
   url "https://github.com/pawiromitchel/Dozer/releases/download/v#{version}/Dozer.zip"
   name "Dozer"
