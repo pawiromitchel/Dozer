@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Re-run only the Homebrew cask update for an existing release (e.g. after a failure).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose Dozer.zip the cask should point at (e.g. v5.0.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish Dozer.app
+    if: github.event_name == 'push'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test
+        run: swift test
+
+      - name: Build universal Dozer.zip
+        run: make zip
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Dozer.zip
+          generate_release_notes: true
+
+  cask:
+    name: Update Homebrew cask
+    needs: release
+    if: ${{ !cancelled() && (needs.release.result == 'success' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Compute checksum of the released zip
+        id: sum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG" --dir assets --pattern 'Dozer.zip'
+          test -s assets/Dozer.zip || { echo "missing Dozer.zip" >&2; exit 1; }
+          echo "sha=$(sha256sum assets/Dozer.zip | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit the cask to master
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ./Scripts/update-cask.sh "${TAG#v}" "${{ steps.sum.outputs.sha }}"

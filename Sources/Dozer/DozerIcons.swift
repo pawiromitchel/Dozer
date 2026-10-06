@@ -150,9 +150,10 @@ final class DozerIcons {
         }
     }
 
-    private func handleClick(on icon: StatusIcon, event: NSEvent) {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let isRightClick = event.type == .rightMouseDown || flags.contains(.control)
+    /// `event` can be nil: on recent macOS the click may arrive without a current event. Treat that as a plain left-click.
+    private func handleClick(on icon: StatusIcon, event: NSEvent?) {
+        let flags = (event?.modifierFlags ?? []).intersection(.deviceIndependentFlagsMask)
+        let isRightClick = event?.type == .rightMouseDown || event?.type == .rightMouseUp || flags.contains(.control)
 
         if isRightClick {
             onMenuRequested?(icon)

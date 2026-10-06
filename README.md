@@ -18,6 +18,21 @@
 
 ## ⚙️ Install
 
+### Via Homebrew
+
+This repository is its own Homebrew tap, so there is no separate tap to maintain:
+
+```shell
+brew tap pawiromitchel/dozer https://github.com/pawiromitchel/Dozer
+brew install --cask pawiromitchel/dozer/dozer
+```
+
+The cask installs `Dozer.app` from the latest GitHub release. To update later: `brew upgrade --cask dozer`.
+
+> Recent Homebrew versions refuse to load casks from third-party taps until you trust them. If `brew install` tells you the tap is untrusted, run `brew trust pawiromitchel/dozer` and retry.
+
+### Manually
+
 [Download `Dozer.zip`](https://github.com/pawiromitchel/Dozer/releases/latest), unzip it and move `Dozer.app` to Applications.
 
 Release builds are ad-hoc signed, not notarized. The first time, right-click the app and choose **Open**, or run:
@@ -80,7 +95,9 @@ The app is a plain Swift package (`Package.swift`), so you can also open the fol
 log stream --level debug --predicate 'subsystem == "com.mortennn.Dozer"'
 ```
 
-Tagging `v*` makes CI build and publish a GitHub release.
+### Releasing
+
+Push a tag: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`. The Release workflow tests, builds the universal `Dozer.zip`, publishes the GitHub release, then commits the updated Homebrew cask (`Casks/dozer.rb`, new version and checksum) to `master`. If only the cask step fails, re-run it from the Actions tab with **Run workflow** and the tag. `Scripts/test-release.sh` tests the cask tooling offline.
 
 ## 📄 Requirements
 macOS 13 Ventura or later. Tested on macOS 26 Tahoe (Apple Silicon, notched display).

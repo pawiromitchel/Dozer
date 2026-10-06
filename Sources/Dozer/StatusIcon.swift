@@ -21,9 +21,9 @@ final class StatusIcon {
 
     let kind: Kind
     let item: NSStatusItem
-    private let onClick: (StatusIcon, NSEvent) -> Void
+    private let onClick: (StatusIcon, NSEvent?) -> Void
 
-    init(kind: Kind, autosaveName: String, onClick: @escaping (StatusIcon, NSEvent) -> Void) {
+    init(kind: Kind, autosaveName: String, onClick: @escaping (StatusIcon, NSEvent?) -> Void) {
         self.kind = kind
         self.onClick = onClick
         item = NSStatusBar.system.statusItem(withLength: AppSettings.shared.buttonPadding)
@@ -77,9 +77,8 @@ final class StatusIcon {
 
     @objc
     private func clicked(_ sender: Any?) {
-        guard let event = NSApp.currentEvent else {
-            return
-        }
+        let event = NSApp.currentEvent
+        DozerIcons.log.debug("click on \(self.kind == .remove ? "remove" : "normal", privacy: .public) icon, event: \(event.map { "\($0.type.rawValue) flags=\($0.modifierFlags.rawValue)" } ?? "nil", privacy: .public)")
         onClick(self, event)
     }
 
