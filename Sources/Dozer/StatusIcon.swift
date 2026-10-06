@@ -18,9 +18,9 @@ final class StatusIcon {
     }
 
     enum Style: Equatable {
-        /// The clickable dot.
+        /// The clickable Dozer glyph.
         case dot
-        /// The dot showing how many icons are hidden.
+        /// The glyph followed by how many icons are hidden.
         case badge(Int)
         /// A faint line marking where hidden icons start; only visible while icons are shown.
         case divider
@@ -95,10 +95,15 @@ final class StatusIcon {
         case (_, .divider):
             return Self.divider(height: max(size + 4, 12))
         case (_, .badge(let count)) where count > 0:
-            return Self.badge(count: count, height: max(size + 5, 15))
+            return DozerGlyph.image(height: glyphHeight, count: count)
         default:
-            return Self.dot(diameter: size)
+            return DozerGlyph.image(height: glyphHeight)
         }
+    }
+
+    /// The "icon size" setting (6–16, default 10) mapped to a glyph height that suits the menu bar.
+    private var glyphHeight: CGFloat {
+        CGFloat(AppSettings.shared.iconSize) + 4
     }
 
     private var shownLength: CGFloat {
@@ -130,28 +135,6 @@ final class StatusIcon {
         let event = NSApp.currentEvent
         DozerIcons.log.debug("click on \(self.kind == .remove ? "remove" : "normal", privacy: .public) icon, event: \(event.map { "\($0.type.rawValue) flags=\($0.modifierFlags.rawValue)" } ?? "nil", privacy: .public)")
         onClick(self, event)
-    }
-
-    /// A rounded badge with the number knocked out, so it adapts to light/dark menu bars as a template.
-    static func badge(count: Int, height: CGFloat) -> NSImage {
-        let text = count > 99 ? "99+" : String(count)
-        let font = NSFont.monospacedDigitSystemFont(ofSize: height * 0.68, weight: .bold)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
-        let textSize = (text as NSString).size(withAttributes: attributes)
-        let width = max(height, ceil(textSize.width + height * 0.5))
-        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
-            guard let context = NSGraphicsContext.current else {
-                return true
-            }
-            context.compositingOperation = .destinationOut
-            let origin = NSPoint(x: rect.midX - textSize.width / 2, y: rect.midY - textSize.height / 2)
-            (text as NSString).draw(at: origin, withAttributes: attributes)
-            return true
-        }
-        image.isTemplate = true
-        return image
     }
 
     static func divider(height: CGFloat) -> NSImage {

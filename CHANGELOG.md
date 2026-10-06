@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+* The dot is now a bulldozer glyph traced from the app icon. While icons are hidden it shows how many, e.g. "3 🚜".
+* New demo GIF (148 KB, down from 3 MB), generated from the app's real drawing code with `make demo-gif`.
+* Checked memory (#211): about 55–65 MB and flat across 120 hide/show cycles.
+
 ## Version 5.0.0 (community fork)
 Dozer is maintained again in this fork, after four years without upstream updates.
 

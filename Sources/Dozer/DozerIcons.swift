@@ -137,7 +137,7 @@ final class DozerIcons {
     }
 
     /// One visible dot: the separator draws as a faint line (and vanishes when collapsed),
-    /// and the dot shows how many icons are hidden.
+    /// and the bulldozer shows how many icons are hidden.
     private func updateStyles() {
         guard normalIcons.count > 1, let separator = leftIcon, let handle = rightIcon else {
             normalIcons.forEach { $0.style = .dot }
@@ -176,10 +176,10 @@ final class DozerIcons {
         defaults.set(true, forKey: key)
 
         let label = NSTextField(wrappingLabelWithString: """
-            Icons to the left of this line are hidden when you click the Dozer dot.
+            Icons to the left of this line are hidden when you click the Dozer bulldozer.
 
             Hold ⌘ and drag the icons you want to hide to the left of this line. \
-            Right-click the dot for settings.
+            Right-click the bulldozer for settings.
             """)
         label.preferredMaxLayoutWidth = 260
         let container = NSView()

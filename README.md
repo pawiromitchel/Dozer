@@ -9,7 +9,7 @@
 	<a href="https://opensource.org/licenses/MPL-2.0"><img src="https://img.shields.io/badge/License-MPL%202.0-orange.svg" alt="license"></a>
 </p>
 <p align="center">
-	<img height="100" src="Stuff/demo.gif" alt="demo">
+	<img width="720" src="Stuff/demo.gif" alt="Dozer demo: ⌘-drag icons left of the divider, click the bulldozer to hide them, and it shows how many are hidden">
 </p>
 
 > **Community fork.** [Mortennn/Dozer](https://github.com/Mortennn/Dozer) has been unmaintained since 2021.
@@ -51,18 +51,18 @@ Your settings and keyboard shortcut from Dozer 4.x carry over automatically.
 
 ## ⚫️ How it works
 
-Dozer adds **one dot** to your menu bar, plus a faint divider line just left of it.
+Dozer adds **a small bulldozer** to your menu bar, plus a faint divider line just left of it.
 
 * Hold ⌘ and drag the icons you want to hide to the **left of the divider**
-* Click the dot to hide them. The dot then shows how many icons are hidden, e.g. **③**
+* Click the bulldozer to hide them. It then shows how many icons are hidden, e.g. **3 🚜**
 * Click it again to bring them back. The divider disappears while icons are hidden
 
-Dozer remembers where you put the dot and the divider.
+Dozer remembers where you put the bulldozer and the divider.
 
 ## 👇 Interactions
-* Click the dot to hide/show the icons left of the divider
-* Right-click (or control-click) the dot for Settings, Show All Icons, updates and Quit
-* Set a global keyboard shortcut in Settings. With a shortcut you can also hide the dot itself
+* Click the bulldozer to hide/show the icons left of the divider
+* Right-click (or control-click) the bulldozer for Settings, Show All Icons, updates and Quit
+* Set a global keyboard shortcut in Settings. With a shortcut you can also hide the bulldozer itself
 * Optional: enable the small "remove" dot in Settings for a second group, revealed with option-click
 * Open Dozer again from Finder or Spotlight to reveal everything and open Settings
 
@@ -74,6 +74,10 @@ Dozer handles `dozer://` URLs, so you can drive it from Shortcuts, Raycast, Alfr
 open dozer://toggle    # also: show, hide, show-all, settings
 ```
 
+## 🪶 Footprint
+
+Measured on macOS 26 (Apple Silicon): about 55–65 MB of memory, flat after 120 hide/show cycles (no leak), and about 0.1% CPU with auto-hide on, which polls once a second only while icons are shown.
+
 ## 🛠 Development
 
 ```shell
@@ -81,6 +85,7 @@ make run      # debug build, then launch build/Dozer.app
 make test     # unit tests
 make app      # universal release build in build/Dozer.app
 make install  # release build, copied to /Applications
+make demo-gif # regenerate Stuff/demo.gif from the real drawing code
 ```
 
 The app is a plain Swift package (`Package.swift`), so you can also open the folder in Xcode.

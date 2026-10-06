@@ -138,12 +138,20 @@ struct HiddenItemsTests {
 }
 
 @MainActor
-struct BadgeTests {
-    @Test func badgeWidensForMoreDigits() {
-        let one = StatusIcon.badge(count: 3, height: 15)
-        let two = StatusIcon.badge(count: 12, height: 15)
-        #expect(one.size.width == 15)
-        #expect(two.size.width > one.size.width)
-        #expect(one.isTemplate)
+struct GlyphTests {
+    @Test func glyphKeepsArtworkAspectRatio() {
+        let glyph = DozerGlyph.image(height: 14)
+        #expect(glyph.size.height == 14)
+        #expect(glyph.size.width == 20)
+        #expect(glyph.isTemplate)
+    }
+
+    @Test func countWidensImage() {
+        let plain = DozerGlyph.image(height: 14)
+        let three = DozerGlyph.image(height: 14, count: 3)
+        let twelve = DozerGlyph.image(height: 14, count: 12)
+        #expect(three.size.width > plain.size.width)
+        #expect(twelve.size.width > three.size.width)
+        #expect(three.isTemplate)
     }
 }

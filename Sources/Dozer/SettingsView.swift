@@ -34,7 +34,7 @@ struct SettingsView: View {
                     hasShortcut = DozerIcons.shared.isShortcutSet
                     DozerIcons.shared.shortcutDidChange()
                 }
-                Toggle("Hide the Dozer dot too (shortcut only)", isOn: $settings.noIconMode)
+                Toggle("Hide the Dozer icon too (shortcut only)", isOn: $settings.noIconMode)
                     .disabled(!hasShortcut)
             }
 
@@ -50,7 +50,7 @@ struct SettingsView: View {
             } header: {
                 Text("Icons")
             } footer: {
-                Text("⌘-drag menu bar icons to the left of Dozer’s faint divider line to hide them when you click the dot. While hidden, the dot shows how many icons are hidden. Icons left of the small “remove” dot stay hidden until you option-click. Showing Dozer’s menu replaces the current app’s menu to free up room.")
+                Text("⌘-drag menu bar icons to the left of Dozer’s faint divider line to hide them when you click the bulldozer. While hidden, it shows how many icons are hidden. Icons left of the small “remove” dot stay hidden until you option-click. Showing Dozer’s menu replaces the current app’s menu to free up room.")
                     .foregroundStyle(.secondary)
             }
 
