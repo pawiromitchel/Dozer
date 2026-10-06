@@ -9,19 +9,23 @@ import Cocoa
 /// Hiding works by growing an item to a huge length, which pushes every status item to its left off the
 /// screen. macOS 26 doesn't draw an item that no longer fits, so the stretching is done by an invisible
 /// "wall" glued to the bulldozer's left, and the bulldozer itself never stretches.
+///
+/// Even at zero length an item takes ~16pt of padding, so the wall is never shrunk: while icons are
+/// shown it's out of the menu bar (`isVisible = false`), and it comes back already stretched, re-glued,
+/// when hiding. Removing it straight from stretched also avoids a brief padding flash on show.
 @MainActor
 final class StatusIcon {
     enum Kind {
         /// The visible bulldozer: click it to hide/show everything to its left.
         case bulldozer
-        /// Invisible, zero-width item directly left of the bulldozer that stretches to hide icons.
+        /// Invisible item directly left of the bulldozer that stretches to hide icons; only in the menu bar
+        /// while hiding.
         case wall
         /// The optional, smaller "remove" dot used with option-click.
         case remove
     }
 
     static let collapsedLength: CGFloat = 10_000
-    private static let glyphInset: CGFloat = 6
 
     let kind: Kind
     let item: NSStatusItem
@@ -39,7 +43,11 @@ final class StatusIcon {
     init(kind: Kind, autosaveName: String, onClick: @escaping (StatusIcon, NSEvent?) -> Void) {
         self.kind = kind
         self.onClick = onClick
-        item = NSStatusBar.system.statusItem(withLength: 0)
+        item = NSStatusBar.system.statusItem(withLength: kind == .wall ? Self.collapsedLength : 0)
+        if kind == .wall {
+            // Out of the menu bar until the first hide.
+            item.isVisible = false
+        }
         // Lets macOS remember where the user dragged the icon, across relaunches and reboots.
         item.autosaveName = autosaveName
         item.behavior = []
@@ -47,8 +55,10 @@ final class StatusIcon {
         if let button = item.button {
             button.target = self
             button.action = #selector(clicked(_:))
-            // Mouse-up, not mouse-down: macOS 26 won't resize an item while it's being pressed.
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            // macOS 26 won't resize an item while it's being pressed, so the remove icon (which resizes
+            // itself) acts on mouse-up. The bulldozer never resizes, so it reacts on mouse-down: the
+            // reveal already takes ~0.5s in macOS, no need to also wait for the button to come up.
+            button.sendAction(on: kind == .remove ? [.leftMouseUp, .rightMouseUp] : [.leftMouseDown, .rightMouseDown])
             button.imageScaling = .scaleNone
             switch kind {
             case .bulldozer: button.setAccessibilityLabel("Dozer")
@@ -88,10 +98,13 @@ final class StatusIcon {
             let glyph = DozerGlyph.image(height: glyphHeight, count: hiddenCount)
             button?.image = isShown ? glyph : nil
             button?.setAccessibilityValue(hiddenCount.map { "\($0) hidden" })
-            item.length = isShown ? max(AppSettings.shared.buttonPadding, glyph.size.width + Self.glyphInset * 2) : 0
+            // Sized by macOS like any other icon.
+            item.length = isShown ? NSStatusItem.variableLength : 0
         case .wall:
+            // Never shrunk (see the type's docs): shown means out of the menu bar.
             button?.image = nil
-            item.length = isShown ? 0 : Self.collapsedLength
+            item.length = Self.collapsedLength
+            item.isVisible = !isShown
         case .remove:
             button?.image = Self.dot(diameter: CGFloat(AppSettings.shared.iconSize) / 2)
             item.length = isShown ? AppSettings.shared.buttonPadding : Self.collapsedLength
